@@ -16,6 +16,7 @@
    - `.claude/commands/deep.md`(見「資產 C-6」)
    - `.claude/commands/handoff.md`(見「資產 C-7」)
    - `.claude/commands/twice.md`(見「資產 C-8」)
+   - `.claude/reference/fowler-smells.md`(見「資產 F」)
    - `CONTEXT.md`(見「資產 D-1」)
    - `SPEC.md`(見「資產 D-2」)
    - `LESSONS.md`(見「資產 D-3」)
@@ -39,7 +40,7 @@
 
 - 假設明講；不確定就問；多解讀全部攤開，不靜默選一
 - 有更簡單的做法就說；該推回就推回
-- 非機械任務先 grilling：一次一問、等回答；事實自查（filesystem / grep / 現有工具），決策問人；每題附建議；未共識不動手
+- 非機械任務先 grilling：一次一問、等回答；事實自查（filesystem / grep / 現有工具），決策問人；每題附建議答案（讓 user 直接同意 / 反對，比空白思考更快收斂）；未共識不動手
 
 ## 2. 只做被要求的事
 
@@ -66,6 +67,8 @@ Red → Green → Refactor。任務轉可驗證目標：「加 X」→「寫失�
 
 Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS），內部合作者絕不 mock。用 dependency injection；偏好 SDK 式介面（每個外部操作一個 function）而非泛用 fetcher。
 
+一測一 logical assertion（多斷言 = 訊號稀釋，失敗時難定位）。
+
 只在事先協議的 seam 寫測試。Refactor 屬 review，不屬 loop。
 
 ## 5. 測試隔離
@@ -78,7 +81,15 @@ Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS�
 
 假設前，必須有一個你已跑過的 command：red-capable / deterministic / fast / agent-runnable。
 
-之後:Reproduce → Minimise（每元素都 load-bearing）→ 一次生 3–5 個可證偽假設（防錨定）→ 一次改一變數 → debug log 加唯一前綴（[DEBUG-a4f2]）便於一次清乾淨 → 完成前驗:原 repro 已修 / regression test 存在 / 儀器全清。
+建 loop 的 10 種光譜（照序試）：failing test → curl → CLI diff → headless browser → replay trace → 最小 harness → fuzz → bisect → differential（新舊版 diff 輸出）→ HITL bash（人在迴圈仍要結構化）。
+
+非決定性 bug：目標是拉高重現率（1% → 50%），不是乾淨 repro。50% flake 可 debug；1% 不可。
+
+Perf 分支：log 通常誤導 → measure first（profile / timing harness / query plan）→ 再 fix。
+
+之後：Reproduce → Minimise（每元素都 load-bearing）→ 一次生 3–5 個可證偽假設（排序後給使用者重排再測，借 domain 知識）→ 一次改一變數 → debug log 加唯一前綴（[DEBUG-a4f2]）便於一次清乾淨 → 完成前驗：原 repro 已修 / regression test 存在 / 儀器全清。
+
+Post-mortem：修完問「什麼能預防這 bug？」若答案是架構（無合適 seam 本身即 finding），flag 給架構調整。
 
 ## 7. Deep Module 設計
 
@@ -87,7 +98,13 @@ Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS�
 - 一個 adapter 是假縫，兩個才是真縫
 - 介面即測試面：想繞介面測 = 模組形狀錯了
 - 統一詞彙：module / interface / seam / adapter / depth / leverage / locality
-- Design It Twice：關鍵介面派 3+ 平行 subagent，各給不同約束（最小介面 / 最大彈性 / 最常見 caller 優先），比較後給強勢建議
+- Dependency 4 分類決定測試策略：
+  - In-process（純計算）→ 直接測介面
+  - Local-substitutable（PGLite / in-mem FS）→ 本地替身
+  - Remote but owned（自家 microservice）→ Ports & Adapters（測 in-mem adapter，生產 HTTP adapter）
+  - True external（Stripe / Twilio）→ 注入 port，測試給 mock adapter
+- Replace don't layer：新介面測試蓋上時，刪掉舊 shallow 模組的 unit tests（不刪 = implementation-coupled sediment）
+- Design It Twice：關鍵介面派 3+ 平行 subagent，各給不同約束（最小介面 / 最大彈性 / 最常見 caller 優先 / 圍繞 Ports & Adapters），比較後給強勢建議（不是列選單）
 
 ## 8. Primary Source 紀律
 
@@ -98,7 +115,9 @@ Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS�
 ## 9. 文件（活文件，隨開發即時更新）
 
 - 子資料夾都放 CLAUDE.md：本目錄關注點、對外 seam、進來前該讀哪份 spec / ADR、常見陷阱
-- CONTEXT.md：純 glossary，禁塞規格 / 決定 / scratch；用詞衝突當場叫停
+- CONTEXT.md：純 glossary，禁塞規格 / 決定 / scratch；每條 `**Term**: 定義。_Avoid_: 同義詞`（明列黑名單防漂移）
+- 多 bounded context：根目錄放 CONTEXT-MAP.md 指向各 context 的 CONTEXT.md；單 context 不需要
+- 主動精煉 domain：詞不一致當場叫停；模糊詞提精確候選；用 edge-case scenario 壓測概念邊界；stated behavior vs code 矛盾即刻 surface
 - SPEC.md：功能落地或決策變更當下就改，不批次補
 - LESSONS.md：踩坑 / 反直覺發現 / bug 根因，當下寫 1–3 行 + 日期 + 相關檔
 - ADR 三重門檻（都符合才寫）：hard-to-reverse + surprising + genuine trade-off
@@ -109,10 +128,15 @@ Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS�
 - 不 mid-phase compact（agent 會迷失）；只在 phase 之間主動斷點
 - ~120k tokens 是清晰思考上限；接近上限時不硬撐降級 → 用 handoff 文件開新 session 繼續
 - 每個 implement ticket 開乾淨 context，只帶 ticket 本身
+- Handoff 文件：敏感資訊（token / 密碼）遮掉；已存於 SPEC / commit / diff 的內容只引路徑，不複製
 
 ## 11. Code Review 拆軸
 
-平行跑兩個 subagent，互不污染：Standards（規範 + Fowler smells）+ Spec（忠實實作原需求）。分開報告不合併排名 — 防止一軸掩蓋另一軸。
+平行跑兩個 subagent，互不污染：Standards（repo 規範 + Fowler 12 smells baseline，詳見 `.claude/reference/fowler-smells.md`）+ Spec（忠實實作原需求）。分開報告不合併排名 — 防止一軸掩蓋另一軸。
+
+- repo 規範 > baseline：文件化的規範 override baseline smell
+- Smell 永遠是 judgement call（"possible Feature Envy"，不是 violation）
+- Tooling 已管的別重複提（lint / formatter 抓的不算 finding）
 
 ## 12. 模型調度
 
@@ -136,6 +160,7 @@ Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS�
 - 探索性問題 → 2–3 句建議 + 主要 trade-off，不逕自實作
 - 寫指令用 leading words（tight / red / tracer bullet）取代長描述
 - 六大自檢：premature completion / duplication / sediment / sprawl / no-op / negation
+- Negation 處方：用正面陳述取代禁止（"don't think of an elephant" 反而讓大象更顯著）；硬護欄要配「該做什麼」
 ~~~
 
 ---
@@ -193,11 +218,15 @@ Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS�
 | 「別只想一個原因」「多列幾個可能」 | 3–5 可證偽假設 | §6 |
 | 「加一堆 log 慢慢看」 | ❌ 用 debugger / 目標 log；加唯一前綴 | §6 |
 | 「應該修好了」（沒跑原 repro） | ❌ 完工前必驗原 repro | §6 |
+| 「這 test 偶爾過偶爾失敗」「flaky」 | 拉高重現率而非追求乾淨 repro | §6 |
+| 「這個很慢」「效能問題」 | measure first，log 通常誤導 | §6 |
 | **§7 Deep Module** | | |
 | 「這模組太薄」「這層沒用」「刪掉行不行」 | shallow / deletion test → `/deep` | §7 |
 | 「介面設計」「怎麼切 seam」「要不要抽 interface」 | deep module | §7 |
 | 「先做一個 adapter 抽象化」 | ❌ 1 個是假縫，2 個才是真縫 | §7 |
 | 「這個介面設計得好嗎」「有沒有別種切法」 | Design It Twice → `/twice` | §7 |
+| 「這個依賴要怎麼處理」「怎麼 mock X」 | 依 dependency 4 分類定測試策略 | §7 |
+| 「重構完舊測試怎麼辦」 | Replace don't layer — 刪舊 unit test | §7 |
 | **§8 Primary Source** | | |
 | 「查資料」「研究一下」「Google 一下」 | 只信一手來源（官方 doc / source / spec） | §8 |
 | 「處理合併衝突」「解 conflict」 | 追原始 intent；永不 --abort | §8 |
@@ -207,6 +236,8 @@ Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS�
 | 「這詞什麼意思」「命名太模糊」 | 更新 CONTEXT.md glossary | §9 |
 | 「同一個東西有兩個名字」 | 詞彙衝突當場叫停 | §9 |
 | 「這個決定記一下」 | 判斷屬 SPEC / LESSON / ADR | §9 |
+| 「詞不一致」「命名對不起來」 | Challenge glossary，當場叫停 | §9 |
+| 「這邊界模糊」「怎麼分清 X 和 Y」 | Invent scenario 壓測概念邊界 | §9 |
 | 「規格變了」「需求改了」 | append 到 SPEC.md → `/spec-out` | §9 |
 | 「這次踩到坑」「反直覺發現」「原來如此」 | 寫 LESSONS.md → `/lesson` | §9 |
 | 「這是重大架構決定」（且難逆轉 + 意外 + trade-off） | 寫 ADR | §9 |
@@ -397,6 +428,29 @@ ADR 三重門檻（都符合才寫）：
 3. Genuine trade-off
 
 檔名：NNNN-short-slug.md。內容 1–3 段即可。
+~~~
+
+---
+
+## 資產 F：`.claude/reference/fowler-smells.md`
+
+~~~markdown
+# Fowler 12 Code Smells (baseline)
+
+`/review` 的 Standards 軸使用此清單為 baseline。每條 smell 是 judgement call（"possible X"），不是硬 violation。repo 若有文件化規範，該規範 override 本表；tooling（lint/formatter）已管的別重複提。
+
+1. **Mysterious Name** — 函式 / 變數 / 型別名字看不出用途 → 改名；若改不出誠實的名字，設計本身模糊
+2. **Duplicated Code** — 同一邏輯形狀在 diff 內多處出現 → 抽共用形狀，兩處呼叫
+3. **Feature Envy** — 方法伸手抓別的物件的資料多於自己的 → 把方法搬到它嫉妒的資料上
+4. **Data Clumps** — 同幾個欄位 / 參數一起遷徙（想生成型別的訊號）→ 打包成一型
+5. **Primitive Obsession** — 用原始型別 / 字串代表值得自己型別的 domain 概念 → 給概念一個小型
+6. **Repeated Switches** — 相同 switch/if-cascade 對同型別在多處重現 → 多型 or 共用 map
+7. **Shotgun Surgery** — 一個邏輯改動要散彈式改多個檔 → 把一起變的東西聚到同模組
+8. **Divergent Change** — 一個檔 / 模組被為多個不相關原因修改 → 拆到各改一因
+9. **Speculative Generality** — 為 spec 沒要求的需求加的抽象 / 參數 / hook → 刪掉，內聯回去直到真需求出現
+10. **Message Chains** — 長的 a.b().c().d() 呼叫者不該依賴的走訪 → 藏在第一物件的方法後
+11. **Middle Man** — 大多只是委派給別人的 class / function → 砍掉，直接呼叫真目標
+12. **Refused Bequest** — subclass / implementer 忽略或 override 大部分繼承的東西 → 改用組合
 ~~~
 
 ---
