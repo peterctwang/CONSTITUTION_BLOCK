@@ -47,6 +47,8 @@
 - 最小代碼；沒被要求的功能 / 抽象 / 彈性 / 錯誤處理一律不寫；200 行能壓 50 就重寫
 - 每一行改動可追溯回請求；不順手改相鄰 code / 格式；不重構沒壞的東西
 - 沿用既有風格；看到無關死代碼提出但不刪；只清自己造成的 orphan
+- Refactor 投資方向：跟著近期 commit 熱點（`git log --oneline` 找 hot spots），冷區不重構
+- Prototype 模式：不確定的設計 / 邏輯，先做一次性 throwaway（一鍵可跑、無持久化、無 polish、狀態顯化），驗證完 capture 到 throwaway branch，主線只留結論
 
 ## 3. 工作切分：Tracer Bullet
 
@@ -65,7 +67,7 @@ Red → Green → Refactor。任務轉可驗證目標：「加 X」→「寫失�
 - 禁 tautological（用被測邏輯算期望值）
 - 禁 horizontal slicing → 一測一實作
 
-Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS），內部合作者絕不 mock。用 dependency injection；偏好 SDK 式介面（每個外部操作一個 function）而非泛用 fetcher。
+Mock 邊界：外部 API / 時間 / 隨機源絕對 mock；**DB / FS 優先用真 collaborator（test DB / temp dir），實在不行才 mock**；內部合作者絕不 mock。用 dependency injection；偏好 SDK 式介面（每個外部操作一個 function）而非泛用 fetcher。
 
 一測一 logical assertion（多斷言 = 訊號稀釋，失敗時難定位）。
 
@@ -77,7 +79,7 @@ Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS�
 
 ## 6. Debug 唯一真理
 
-沒有 tight red-capable feedback loop，讀 code 到死也沒用。
+**建 tight red-capable feedback loop 就是這節的本體，其餘都是機械**。沒有它，讀 code 到死也沒用。
 
 假設前，必須有一個你已跑過的 command：red-capable / deterministic / fast / agent-runnable。
 
@@ -87,17 +89,18 @@ Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS�
 
 Perf 分支：log 通常誤導 → measure first（profile / timing harness / query plan）→ 再 fix。
 
-之後：Reproduce → Minimise（每元素都 load-bearing）→ 一次生 3–5 個可證偽假設（排序後給使用者重排再測，借 domain 知識）→ 一次改一變數 → debug log 加唯一前綴（[DEBUG-a4f2]）便於一次清乾淨 → 完成前驗：原 repro 已修 / regression test 存在 / 儀器全清。
+之後：Reproduce → Minimise（每元素都 load-bearing）→ 一次生 3–5 個可證偽假設（**每個必須能明說預測；說不出預測就砍或磨利，vibe 假設不進 pool**；排序後給使用者重排再測，借 domain 知識）→ 一次改一變數 → **儀器優先順序：Debugger / REPL > 目標 log（加唯一前綴 [DEBUG-a4f2]）> 絕不「log everything and grep」** → 完成前驗：原 repro 已修 / regression test 存在 / 儀器全清。
 
-Post-mortem：修完問「什麼能預防這 bug？」若答案是架構（無合適 seam 本身即 finding），flag 給架構調整。
+Post-mortem：修完問「什麼能預防這 bug？」若答案是架構（無合適 seam 本身即 finding），flag 給架構調整；**驗證正確的假設寫進 commit / PR message，讓下個 debugger 學**。
 
 ## 7. Deep Module 設計
 
 - 深度 = 介面槓桿：小介面藏大量行為
-- Deletion test：刪掉後複雜度只是搬家 → pass-through，砍
+- Deletion test：刪掉後複雜度**消失** → pass-through，砍；複雜度**重現於 N callers** → earning its keep，**留**（搬家 = 保留，不是搬家 = 砍）
 - 一個 adapter 是假縫，兩個才是真縫
 - 介面即測試面：想繞介面測 = 模組形狀錯了
 - 統一詞彙：module / interface / seam / adapter / depth / leverage / locality
+- Seam 節制：優先復用最高既有 seam；新 seam 必要時放最高處；**seam 數量越少越好，理想 = 1**
 - Dependency 4 分類決定測試策略：
   - In-process（純計算）→ 直接測介面
   - Local-substitutable（PGLite / in-mem FS）→ 本地替身
@@ -109,11 +112,12 @@ Post-mortem：修完問「什麼能預防這 bug？」若答案是架構（無�
 ## 8. Primary Source 紀律
 
 - Research 只信一手來源：官方 doc / source code / spec / first-party API；每個 claim 追回擁有它的來源
-- Merge conflict：讀 commit message / PR / issue 理解各方原始 intent，能保留兩邊就保留、不能就選符合 merge 目標的並記錄 trade-off；永不 --abort
+- Merge conflict：讀 commit message / PR / issue 理解各方原始 intent，能保留兩邊就保留、不能就選符合 merge 目標的並記錄 trade-off；永不 --abort；**完成後跑 typecheck / tests / format 確認沒破壞**
 - 遇障礙不用破壞性動作抄近路（禁 --no-verify）→ 找根因
 
 ## 9. 文件（活文件，隨開發即時更新）
 
+- **進場紀律**：動任何一塊 code 前，先讀該區 CONTEXT.md + ADR（消費側紀律 — 不只寫，還要讀）
 - 子資料夾都放 CLAUDE.md：本目錄關注點、對外 seam、進來前該讀哪份 spec / ADR、常見陷阱
 - CONTEXT.md：純 glossary，禁塞規格 / 決定 / scratch；每條 `**Term**: 定義。_Avoid_: 同義詞`（明列黑名單防漂移）
 - 多 bounded context：根目錄放 CONTEXT-MAP.md 指向各 context 的 CONTEXT.md；單 context 不需要
@@ -129,10 +133,11 @@ Post-mortem：修完問「什麼能預防這 bug？」若答案是架構（無�
 - ~120k tokens 是清晰思考上限；接近上限時不硬撐降級 → 用 handoff 文件開新 session 繼續
 - 每個 implement ticket 開乾淨 context，只帶 ticket 本身
 - Handoff 文件：敏感資訊（token / 密碼）遮掉；已存於 SPEC / commit / diff 的內容只引路徑，不複製
+- **多 session 大工作**：先做決策地圖（列待決問題 + blocking 關係），一 session 解一個決策，再進 §3 切實作切片；不 charge at destination
 
 ## 11. Code Review 拆軸
 
-平行跑兩個 subagent，互不污染：Standards（repo 規範 + Fowler 12 smells baseline，詳見 `.claude/reference/fowler-smells.md`）+ Spec（忠實實作原需求）。分開報告不合併排名 — 防止一軸掩蓋另一軸。
+平行跑兩個 subagent，互不污染：Standards（repo 規範 + Fowler 12 smells baseline，詳見 `.claude/reference/fowler-smells.md`）+ Spec（忠實實作原需求）。分開報告；**每軸內可排最嚴重，但不選跨軸 winner** — 防止一軸掩蓋另一軸。
 
 - repo 規範 > baseline：文件化的規範 override baseline smell
 - Smell 永遠是 judgement call（"possible Feature Envy"，不是 violation）
