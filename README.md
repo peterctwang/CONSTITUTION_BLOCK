@@ -6,11 +6,23 @@
 
 ## 用法
 
+### 最快：一句話調用（推薦）
+
+到新專案 `cd <專案> && claude`，第一則訊息貼：
+
+```
+抓 https://raw.githubusercontent.com/peterctwang/CONSTITUTION_BLOCK/main/INSTALL.md 依照裡面指示在本專案安裝
+```
+
+Claude 會自動 WebFetch 該 URL 然後照指令建檔、詢問是否加 hooks、填 Override。
+
+### 手動貼上（無網路 / 想離線審視內容）
+
 1. 打開 [`INSTALL.md`](./INSTALL.md) 的 **Raw** 檔（GitHub 右上角 Raw 按鈕）
 2. 全選複製
 3. 到你的新專案：`cd <專案> && claude`
 4. 貼成第一則訊息
-5. Claude 會自動建好所有檔案，並詢問是否加 hooks、填 Override
+5. Claude 會自動建好所有檔案
 
 ## 產出的檔案結構
 
