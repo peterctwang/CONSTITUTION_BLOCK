@@ -30,7 +30,7 @@
 ## 資產 A：`CONSTITUTION.md` 全文
 
 ~~~markdown
-# 開發憲法 v3
+# 開發憲法 v5
 
 ## 0. 根本
 
@@ -48,7 +48,7 @@
 - 每一行改動可追溯回請求；不順手改相鄰 code / 格式；不重構沒壞的東西
 - 沿用既有風格；看到無關死代碼提出但不刪；只清自己造成的 orphan
 - Refactor 投資方向：跟著近期 commit 熱點（`git log --oneline` 找 hot spots），冷區不重構
-- Prototype 模式：不確定的設計 / 邏輯，先做一次性 throwaway（一鍵可跑、無持久化、無 polish、狀態顯化），驗證完 capture 到 throwaway branch，主線只留結論
+- Prototype 模式：**僅在使用者同意 / 設計本身高度不確定時啟用**；不確定的設計 / 邏輯先做一次性 throwaway（一鍵可跑、無持久化、無 polish、狀態顯化），驗證完 capture 到 throwaway branch，主線只留結論
 
 ## 3. 工作切分：Tracer Bullet
 
@@ -243,6 +243,12 @@ Post-mortem：修完問「什麼能預防這 bug？」若答案是架構（無�
 | 「這個決定記一下」 | 判斷屬 SPEC / LESSON / ADR | §9 |
 | 「詞不一致」「命名對不起來」 | Challenge glossary，當場叫停 | §9 |
 | 「這邊界模糊」「怎麼分清 X 和 Y」 | Invent scenario 壓測概念邊界 | §9 |
+| 「先做個 throwaway」「快速試試」「一次性驗證」 | Prototype 模式 | §2 |
+| 「開始改這塊」「接手這模組」「動這區之前」 | 進場紀律 — 先讀 CONTEXT.md + ADR | §9 |
+| 「這是大工程」「要跨好幾次對話」「分多階段做」 | 多 session 決策地圖優先於實作切片 | §10 |
+| 「重構要投在哪」 | 跟近期 commit 熱點（git log） | §2 |
+| 「這 bug 的假設要記下來」 | 驗證正確的假設寫進 commit / PR | §6 |
+| 「這條規則太多禁止」 | Negation 處方：正面陳述取代禁止 | §14 |
 | 「規格變了」「需求改了」 | append 到 SPEC.md → `/spec-out` | §9 |
 | 「這次踩到坑」「反直覺發現」「原來如此」 | 寫 LESSONS.md → `/lesson` | §9 |
 | 「這是重大架構決定」（且難逆轉 + 意外 + trade-off） | 寫 ADR | §9 |
@@ -310,13 +316,17 @@ description: 按憲法 §1 對我做 grilling
 ---
 description: 按憲法 §6 debug 紀律
 ---
-按憲法 §6：
-1. 先建 tight red-capable loop（red-capable / deterministic / fast / agent-runnable），跑過至少一次貼出結果，才准生假設
-2. Reproduce → Minimise（每元素 load-bearing）
-3. 一次生 3–5 個可證偽假設（防錨定），排序後給我看
-4. 一次只改一個變數
-5. 所有 debug log 加唯一前綴 [DEBUG-xxxx] 便於一次清乾淨
-6. 完工前驗：原 repro 已修 / regression test 存在 / 儀器全清
+按憲法 §6（Phase 1 是本體，其餘機械）：
+
+1. **建 tight red-capable loop 就是這節的本體**：red-capable / deterministic / fast / agent-runnable，跑過至少一次貼出結果，才准生假設
+2. **非決定性 bug**：目標是拉高重現率（1% → 50%），不是乾淨 repro
+3. **Perf 分支**：log 通常誤導 → measure first（profile / timing / query plan）→ 再 fix
+4. Reproduce → Minimise（每元素 load-bearing）
+5. 一次生 3–5 個可證偽假設：**每個必須能明說預測；說不出預測就砍或磨利，vibe 假設不進 pool**；排序後給我看
+6. 一次只改一個變數
+7. **儀器優先順序：Debugger / REPL > 目標 log（加唯一前綴 [DEBUG-xxxx]）> 絕不「log everything and grep」**
+8. 完工前驗：原 repro 已修 / regression test 存在 / 儀器全清
+9. Post-mortem：**驗證正確的假設寫進 commit / PR message**；若答案是架構（無合適 seam 本身即 finding），flag 給架構調整
 ~~~
 
 ### C-3 `review.md`
@@ -326,9 +336,10 @@ description: 按憲法 §11 拆軸 review
 ---
 按憲法 §11 兩軸 review：
 - 平行派兩個 subagent，互不污染
-- Standards agent：規範 + Fowler code smells baseline
-- Spec agent：忠實實作原需求
-- 分開報告，不合併排名
+- **Standards agent**：repo 規範 + Fowler 12 smells baseline（詳見 `.claude/reference/fowler-smells.md`）
+- **Spec agent**：忠實實作原需求
+- 分開報告；**每軸內可排最嚴重，但不選跨軸 winner**（防止一軸掩蓋另一軸）
+- Tooling（lint / formatter）已管的別重複提；文件化的 repo 規範 override baseline smell
 
 先問我 fixed point（commit / branch / tag），再取 diff。
 ~~~
@@ -365,10 +376,13 @@ description: 把剛才踩的坑寫成 LESSONS.md 一條
 description: 按憲法 §7 對指定模組做深度檢查
 ---
 按憲法 §7 對使用者指定的模組做檢查：
-1. Deletion test：想像刪掉這模組，複雜度會消失還是只是搬家？
-2. Adapter 檢查：現在幾個 adapter？（1 個是假縫，2 個才是真縫）
-3. 介面是測試面嗎？想繞介面測 = 模組形狀錯了
-4. 用統一詞彙報告：module / interface / seam / adapter / depth / leverage / locality
+1. **Deletion test**：刪掉後複雜度消失 → pass-through 該砍；重現於 N callers → earning its keep 該留（搬家 = 保留，不是搬家 = 砍）
+2. **Adapter 檢查**：現在幾個 adapter？（1 個是假縫，2 個才是真縫）
+3. **介面是測試面嗎**？想繞介面測 = 模組形狀錯了
+4. **Seam 節制**：能不能復用最高既有 seam？現有 seam 是否可壓到理想 = 1？
+5. **Dependency 分類**：這模組的依賴屬 in-process / local-substitutable / remote-owned (Ports & Adapters) / true-external 哪一類？對應測試策略是什麼？
+6. **Replace don't layer 檢查**：若這模組被深化，舊 shallow 模組的 unit tests 該刪掉哪些？
+7. 用統一詞彙報告：module / interface / seam / adapter / depth / leverage / locality
 ~~~
 
 ### C-7 `handoff.md`
@@ -381,6 +395,7 @@ description: 按憲法 §10 壓縮當前對話成交接文檔
 - 包含：正在做什麼 / 已達成的決定 / 未解的問題 / 下一步 / suggested skills
 - 不重複已在 SPEC.md / LESSONS.md / ADR / commit 的內容，用連結指
 - 敏感資訊（API key / 密碼）遮掉
+- **若屬多 session 大工作**：先產決策地圖（列待決問題 + blocking 關係），一 session 解一個決策，別 charge at destination
 ~~~
 
 ### C-8 `twice.md`
@@ -389,13 +404,14 @@ description: 按憲法 §10 壓縮當前對話成交接文檔
 description: 按憲法 §7 Design It Twice
 ---
 按憲法 §7 Design It Twice：
-1. 先寫出這個 module 要滿足的約束（用 CONTEXT.md 詞彙）
-2. 派 3 個平行 subagent，各給不同設計約束：
+1. 先寫出這個 module 要滿足的約束（用 CONTEXT.md 詞彙 + dependency 4 分類）
+2. 派 3–4 個平行 subagent，各給不同設計約束：
    - Agent 1: 最小介面（1–3 個 entry point，最大化 leverage）
    - Agent 2: 最大彈性（支援多種 use case）
    - Agent 3: 為最常見 caller 優化（default case 極簡）
+   - Agent 4（跨 seam 依賴時）：圍繞 Ports & Adapters 設計
 3. 每個 agent 產出：interface / usage example / 藏在 seam 後的實作 / trade-off
-4. 比較 depth / locality / seam placement 後給強勢建議（不是選單）
+4. 比較 depth / locality / seam placement 後**給強勢建議（不是列選單）**
 ~~~
 
 ---
