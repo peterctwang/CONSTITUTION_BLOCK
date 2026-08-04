@@ -158,27 +158,81 @@ Mock 邊界：只在系統邊界 mock（外部 API / DB / 時間 / 隨機 / FS�
 
 當使用者說白話，你要當作對應的緊實詞：
 
-| 白話 | 緊實詞 | 章節 |
+| 白話 | 緊實詞 / 對應 command | 章節 |
 |---|---|---|
-| 「先問清楚再做」「別亂猜」 | grilling | §1 |
-| 「動手前先想」 | Simplicity + Surgical | §2 |
-| 「切小塊做」「分階段做」 | tracer bullet / vertical slice | §3 |
-| 「這個要大範圍改」「改欄位名」 | wide refactor / expand–contract | §3 |
+| **§1 對齊 / grilling** | | |
+| 「先問清楚再做」「別亂猜」「先幫我釐清」 | grilling → `/grill` | §1 |
+| 「這需求我不太懂」「我不確定你要什麼」 | 觸發 grilling | §1 |
+| 「你自己判斷」「你決定就好」 | ❌ 拒絕：決策問人 | §1 |
+| 「假設是這樣...」「我猜...」 | 假設明講，多解讀攤開 | §1 |
+| **§2 只做被要求 / Simplicity** | | |
+| 「動手前先想」「先想清楚」 | Simplicity + Surgical | §2 |
+| 「有沒有更簡單的做法」「這太複雜了」 | 200 行壓 50 | §2 |
+| 「順便把 X 也改了」「這裡也整理一下」 | ❌ 不順手改相鄰 | §2 |
+| 「加個 flag / config 以後可能會用」 | ❌ 不做 speculative | §2 |
+| 「加個 try/catch 保險」 | ❌ 不寫不可能情境的 error handling | §2 |
+| 「把這個 refactor 一下」（沒壞） | ❌ 不重構沒壞的 | §2 |
+| **§3 工作切分 / Tracer Bullet** | | |
+| 「切小塊做」「分階段做」「一片一片來」 | tracer bullet / vertical slice | §3 |
+| 「先把架構搭起來，再填實作」 | ❌ 禁水平切 → 改垂直 | §3 |
+| 「這個要大範圍改」「改欄位名 / 型別」 | wide refactor / expand–contract | §3 |
 | 「先簡化再改」「改之前先整理」 | prefactor first | §3 |
-| 「先寫測試」「TDD」 | red-green-refactor | §4 |
-| 「別 mock 內部」「測試不要碰內部」 | mock at boundaries | §4 |
-| 「先能重現」「先建復現腳本」 | tight red-capable loop | §6 |
+| 「寫個 ticket 給 AI 做」「開 issue 給 agent」 | AFK agent brief（behavioral 非 procedural，不寫檔案路徑） | §3 |
+| **§4 TDD + Mock 邊界** | | |
+| 「先寫測試」「TDD」「red-green」 | red-green-refactor | §4 |
+| 「先 mock 起來」 | 只 mock 系統邊界，別 mock 內部 | §4 |
+| 「測試呼叫 count」「驗證某某有被 call」 | ❌ implementation-coupled | §4 |
+| 「這個 test 用被測函式算期望值」 | ❌ tautological | §4 |
+| 「所有 test 一次寫完再實作」 | ❌ horizontal slicing | §4 |
+| **§5 測試隔離** | | |
+| 「test 檔放旁邊」「跟源碼放一起」 | ❌ 測試碼永不混入源碼 | §5 |
+| 「源碼 import 一下 test helper」 | ❌ 源碼不得 import 測試 | §5 |
+| **§6 Debug** | | |
+| 「先能重現」「先建復現腳本」「先寫個 test 抓」 | tight red-capable loop → `/debug` | §6 |
+| 「我覺得問題可能是...」（直接猜） | ❌ 沒 loop 不准假設 | §6 |
 | 「別只想一個原因」「多列幾個可能」 | 3–5 可證偽假設 | §6 |
-| 「這模組太薄」「這層沒用」 | shallow / deletion test | §7 |
-| 「介面設計」「怎麼切 seam」 | deep module / design it twice | §7 |
-| 「查資料」「研究一下」 | primary source | §8 |
-| 「處理合併衝突」 | merge conflict | §8 |
-| 「寫個 ticket 給 AI 做」 | AFK agent brief | §3 |
-| 「這對話快滿了」「換一個聊」 | handoff | §10 |
-| 「幫我 review」「幫我看這個 diff」 | two-axis review | §11 |
-| 「這事很難」「這事很關鍵」 | T3 / T4 | §12 升檔 |
-| 「大範圍找」「掃一下」 | T1 找便宜 | §12 平行 |
-| 「別亂改」「別跑破壞性指令」 | 行動邊界 | §13 |
+| 「加一堆 log 慢慢看」 | ❌ 用 debugger / 目標 log；加唯一前綴 | §6 |
+| 「應該修好了」（沒跑原 repro） | ❌ 完工前必驗原 repro | §6 |
+| **§7 Deep Module** | | |
+| 「這模組太薄」「這層沒用」「刪掉行不行」 | shallow / deletion test → `/deep` | §7 |
+| 「介面設計」「怎麼切 seam」「要不要抽 interface」 | deep module | §7 |
+| 「先做一個 adapter 抽象化」 | ❌ 1 個是假縫，2 個才是真縫 | §7 |
+| 「這個介面設計得好嗎」「有沒有別種切法」 | Design It Twice → `/twice` | §7 |
+| **§8 Primary Source** | | |
+| 「查資料」「研究一下」「Google 一下」 | 只信一手來源（官方 doc / source / spec） | §8 |
+| 「處理合併衝突」「解 conflict」 | 追原始 intent；永不 --abort | §8 |
+| 「衝突太多 --abort 算了」 | ❌ 永不 --abort | §8 |
+| 「pre-commit 過不了 --no-verify」 | ❌ 找根因，不抄近路 | §8 |
+| **§9 活文件** | | |
+| 「這詞什麼意思」「命名太模糊」 | 更新 CONTEXT.md glossary | §9 |
+| 「同一個東西有兩個名字」 | 詞彙衝突當場叫停 | §9 |
+| 「這個決定記一下」 | 判斷屬 SPEC / LESSON / ADR | §9 |
+| 「規格變了」「需求改了」 | append 到 SPEC.md → `/spec-out` | §9 |
+| 「這次踩到坑」「反直覺發現」「原來如此」 | 寫 LESSONS.md → `/lesson` | §9 |
+| 「這是重大架構決定」（且難逆轉 + 意外 + trade-off） | 寫 ADR | §9 |
+| **§10 Context Hygiene** | | |
+| 「這對話快滿了」「context 太長」「換一個聊」 | handoff → `/handoff` | §10 |
+| 「壓縮一下對話 / compact」 | 分清 handoff（開新）vs compact（同對話續）；不 mid-phase compact | §10 |
+| **§11 Code Review** | | |
+| 「幫我 review」「幫我看這個 diff」「commit 前檢查」 | two-axis review → `/review` | §11 |
+| 「找一個總分」「哪個問題最嚴重」 | ❌ 不合併排名，兩軸分開報告 | §11 |
+| **§12 模型調度** | | |
+| 「這事很難 / 很關鍵」「架構決策」「對抗驗證」 | T3 / T4 升檔 opus/high↑ | §12 |
+| 「大範圍找 / 掃 / 過濾 / 格式化」 | T1 haiku 平行 | §12 |
+| 「派 20 個 agent 平行」 | ⚠️ >10 代理先問使用者 | §12 |
+| 「這個結論可信嗎」 | 註明是否經高檔驗證 | §12 |
+| **§13 行動邊界** | | |
+| 「push 上去」「force push」「開 PR」 | 做之前問 | §13 |
+| 「把這 branch 刪了」「rm -rf」「reset --hard」 | 做之前問 | §13 |
+| 「改 CI / hook」「改共用配置」 | 做之前問 | §13 |
+| 「這個檔怎麼多出來」「這 branch 誰的」 | 先調查，可能是使用者未提交的工作 | §13 |
+| **§14 輸出** | | |
+| 「回答太長」「太囉唆」 | 簡潔優先，長度匹配問題 | §14 |
+| 「加個註解說明」 | 預設不寫；only why 非顯而易見時寫 | §14 |
+| 「這段 code 加個中文說明」 | ❌ 不寫「這段 code 做什麼」（好命名已說了） | §14 |
+| 「我做完了」「應該可以了吧」 | 完工前跑六大自檢 | §14 |
+
+**沒對到表的白話**：Claude 應主動判斷最接近的章節並執行；若不確定，先 `/grill` 問使用者意圖再動手。
 
 ## 本專案 Override
 
